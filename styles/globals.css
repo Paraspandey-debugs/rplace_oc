@@ -1,0 +1,436 @@
+/* Global styles for OpenCode IIITA Pixel Canvas */
+/* Cyberpunk synthwave theme with pixelated rendering and video background */
+
+html,body,#__next{height:100%; overflow: auto;}
+
+/* Retro Synthwave Theme with Video Background */
+body{
+  font-family: 'Press Start 2P', monospace;
+  margin:0;
+  background: transparent;
+  color: #ffffff;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  animation: synthFlicker 0.15s infinite alternate;
+  min-height: 100vh;
+}
+
+html {
+  background: #000000;
+}
+
+/* Semi-transparent overlay for video background */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Flicker animation for retro effect */
+@keyframes synthFlicker {
+  0% { opacity: 1; filter: hue-rotate(0deg); }
+  100% { opacity: 0.95; filter: hue-rotate(5deg); }
+}
+
+@keyframes pixelFlicker {
+  0% { opacity: 1; }
+  100% { opacity: 0.98; }
+}
+
+/* Unused drifting background animation */
+@keyframes drift {
+  0% {
+    background-position: 0px 0px, 0px 0px, 0px 0px, 0px 0px, 0px 0px, 0px 0px, 0px 0px;
+  }
+  100% {
+    background-position: 200px 100px, -100px 150px, 150px -200px, -50px 250px, 100px 50px, -150px 75px, 0px 0px;
+  }
+}
+
+/* Unused nebula animation */
+@keyframes nebulaShift {
+  0% {
+    background: radial-gradient(circle at 30% 40%, rgba(255,0,150,0.15) 0%, transparent 60%);
+  }
+  50% {
+    background: radial-gradient(circle at 70% 60%, rgba(0,255,200,0.2) 0%, transparent 60%);
+  }
+  100% {
+    background: radial-gradient(circle at 30% 40%, rgba(255,0,150,0.15) 0%, transparent 60%);
+  }
+}
+
+/* Unused scanlines animation */
+@keyframes scanlines {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 4px; }
+}
+
+/* Window-like container for canvas */
+.window {
+	width: calc(100% - 40px);
+	max-width: 1200px;
+	margin: 32px 0;
+	background: linear-gradient(180deg, #1a0033 0%, #0a0a0a 100%);
+	border: 4px solid #aa0066;
+	box-shadow: 0 0 20px rgba(170, 0, 102, 0.5), 8px 8px 0 #330066, 16px 16px 0 #000033;
+	color: #ffffff;
+	image-rendering: pixelated;
+	position: relative;
+}
+
+/* Shooting star effect on window */
+.window::before {
+	content: '';
+	position: absolute;
+	top: 10%;
+	left: -10%;
+	width: 2px;
+	height: 2px;
+	background: white;
+	box-shadow: 0 0 10px white, 0 0 20px white;
+	animation: shootingStar 10s linear infinite;
+	pointer-events: none;
+	z-index: 2;
+}
+
+@keyframes shootingStar {
+	0% { transform: translateX(0) translateY(0) scale(0); opacity: 0; }
+	10% { opacity: 1; transform: scale(1); }
+	90% { opacity: 1; transform: scale(1); }
+	100% { transform: translateX(120vw) translateY(20vh) scale(0); opacity: 0; }
+}
+
+/* Unused glow animation */
+@keyframes glow {
+	from {
+		box-shadow: 0 8px 20px rgba(0,0,0,0.6), 4px 4px 0 rgba(0,0,0,0.12);
+	}
+	to {
+		box-shadow: 0 8px 20px rgba(0,160,255,0.2), 4px 4px 0 rgba(0,0,0,0.12);
+	}
+}
+
+/* Title bar styling */
+.titlebar {
+  background: linear-gradient(90deg, #330066 0%, #000033 100%);
+  border-bottom: 4px solid #aa0066;
+  color: #ffffff;
+  padding: 8px 12px;
+  font-size: 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  image-rendering: pixelated;
+  box-shadow: 0 0 10px rgba(170, 0, 102, 0.3);
+}
+
+.title-left { display:flex; align-items:center; gap:8px }
+.title-dots { display:flex; gap:4px; align-items:center }
+.dot { width:12px; height:12px; border: 2px solid #ffffff; background: #000000; image-rendering: pixelated; }
+.dot.close { background:#ff0000 }
+.dot.min { background:#ffff00 }
+.dot.max { background:#00ff00 }
+
+.content { padding: 16px }
+
+/* Toolbar for tools and colors */
+.toolbar {
+  background: #000000;
+  border: 2px solid #7c7c7c;
+  padding: 10px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  image-rendering: pixelated;
+}
+
+/* Tool buttons */
+.tool-button {
+	background: #330066;
+	border: 2px solid #aa0066;
+	padding: 6px 10px;
+	font-size: 8px;
+	cursor: pointer;
+	color: #ffffff;
+	image-rendering: pixelated;
+	box-shadow: 0 0 10px rgba(170, 0, 102, 0.3), 2px 2px 0 #000033;
+}
+.tool-button:hover { background: #660099; box-shadow: 0 0 15px rgba(170, 0, 102, 0.5); }
+.tool-button.active { background: #aa0066; color: #000000; }
+
+/* Color palette */
+.palette { display:flex; gap:6px; padding-left:8px }
+.palette-color { width:20px; height:20px; border:2px solid #ffffff; cursor:pointer; image-rendering: pixelated; }
+
+/* Canvas container */
+.canvas-area {
+	margin-top:16px;
+	display:flex;
+	justify-content:center;
+	align-items:center;
+	padding: 20px;
+	background: linear-gradient(180deg, #0a0a0a 0%, #1a0033 100%);
+	border: 4px solid #004466;
+	box-shadow: 0 0 20px rgba(0, 68, 102, 0.5), 4px 4px 0 #003366, 8px 8px 0 #000033;
+	position: relative;
+	image-rendering: pixelated;
+}
+
+/* Unused border glow animation */
+@keyframes borderGlow {
+	from {
+		border-color: rgba(0,160,255,0.5);
+		box-shadow: 0 6px 18px rgba(0,0,0,0.6) inset, 0 6px 18px rgba(0,0,0,0.4), 0 0 20px rgba(0,160,255,0.3);
+	}
+	to {
+		border-color: rgba(255,0,150,0.8);
+		box-shadow: 0 6px 18px rgba(0,0,0,0.6) inset, 0 6px 18px rgba(0,0,0,0.4), 0 0 20px rgba(255,0,150,0.5);
+	}
+}
+
+/* Grid overlay effect */
+.canvas-area::before {
+	content: '';
+	position: absolute;
+	top: 20px;
+	left: 20px;
+	right: 20px;
+	bottom: 20px;
+	background-image:
+		linear-gradient(rgba(0,68,102,0.06) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(0,68,102,0.06) 1px, transparent 1px),
+		radial-gradient(circle at 10% 20%, rgba(255,255,255,0.03) 0.5px, transparent 0.6px);
+	background-size: 20px 20px, 20px 20px, 100px 100px;
+	animation: gridPulse 3s ease-in-out infinite;
+	pointer-events: none;
+}
+
+/* Pulsing grid animation */
+@keyframes gridPulse {
+	0%, 100% {
+		opacity: 0.5;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+.controls { display:flex; gap:12px; align-items:center }
+
+.status { margin-left: 12px; font-size:12px }
+
+/* Retro Synthwave Theme with Video Background */
+body{
+  font-family: 'Press Start 2P', monospace;
+  margin:0;
+  background: transparent;
+  color: #ffffff;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  animation: synthFlicker 0.15s infinite alternate;
+  min-height: 100vh;
+}
+
+html {
+  background: #000000;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: -1;
+  pointer-events: none;
+}
+
+@keyframes synthFlicker {
+  0% { opacity: 1; filter: hue-rotate(0deg); }
+  100% { opacity: 0.95; filter: hue-rotate(5deg); }
+}
+
+@keyframes pixelFlicker {
+  0% { opacity: 1; }
+  100% { opacity: 0.98; }
+}
+
+@keyframes drift {
+  0% {
+    background-position: 0px 0px, 0px 0px, 0px 0px, 0px 0px, 0px 0px, 0px 0px, 0px 0px;
+  }
+  100% {
+    background-position: 200px 100px, -100px 150px, 150px -200px, -50px 250px, 100px 50px, -150px 75px, 0px 0px;
+  }
+}
+
+@keyframes nebulaShift {
+  0% {
+    background: radial-gradient(circle at 30% 40%, rgba(255,0,150,0.15) 0%, transparent 60%);
+  }
+  50% {
+    background: radial-gradient(circle at 70% 60%, rgba(0,255,200,0.2) 0%, transparent 60%);
+  }
+  100% {
+    background: radial-gradient(circle at 30% 40%, rgba(255,0,150,0.15) 0%, transparent 60%);
+  }
+}
+
+@keyframes scanlines {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 4px; }
+}
+
+.window {
+	width: calc(100% - 40px);
+	max-width: 1200px;
+	margin: 32px 0;
+	background: linear-gradient(180deg, #1a0033 0%, #0a0a0a 100%);
+	border: 4px solid #aa0066;
+	box-shadow: 0 0 20px rgba(170, 0, 102, 0.5), 8px 8px 0 #330066, 16px 16px 0 #000033;
+	color: #ffffff;
+	image-rendering: pixelated;
+	position: relative;
+}
+
+.window::before {
+	content: '';
+	position: absolute;
+	top: 10%;
+	left: -10%;
+	width: 2px;
+	height: 2px;
+	background: white;
+	box-shadow: 0 0 10px white, 0 0 20px white;
+	animation: shootingStar 10s linear infinite;
+	pointer-events: none;
+	z-index: 2;
+}
+
+@keyframes shootingStar {
+	0% { transform: translateX(0) translateY(0) scale(0); opacity: 0; }
+	10% { opacity: 1; transform: scale(1); }
+	90% { opacity: 1; transform: scale(1); }
+	100% { transform: translateX(120vw) translateY(20vh) scale(0); opacity: 0; }
+}
+
+@keyframes glow {
+	from {
+		box-shadow: 0 8px 20px rgba(0,0,0,0.6), 4px 4px 0 rgba(0,0,0,0.12);
+	}
+	to {
+		box-shadow: 0 8px 20px rgba(0,160,255,0.2), 4px 4px 0 rgba(0,0,0,0.12);
+	}
+}
+
+.titlebar {
+  background: linear-gradient(90deg, #330066 0%, #000033 100%);
+  border-bottom: 4px solid #aa0066;
+  color: #ffffff;
+  padding: 8px 12px;
+  font-size: 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  image-rendering: pixelated;
+  box-shadow: 0 0 10px rgba(170, 0, 102, 0.3);
+}
+
+.title-left { display:flex; align-items:center; gap:8px }
+.title-dots { display:flex; gap:4px; align-items:center }
+.dot { width:12px; height:12px; border: 2px solid #ffffff; background: #000000; image-rendering: pixelated; }
+.dot.close { background:#ff0000 }
+.dot.min { background:#ffff00 }
+.dot.max { background:#00ff00 }
+
+.content { padding: 16px }
+
+.toolbar {
+  background: #000000;
+  border: 2px solid #7c7c7c;
+  padding: 10px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  image-rendering: pixelated;
+}
+
+.tool-button {
+	background: #330066;
+	border: 2px solid #ff0099;
+	padding: 6px 10px;
+	font-size: 8px;
+	cursor: pointer;
+	color: #ffffff;
+	image-rendering: pixelated;
+	box-shadow: 0 0 10px rgba(255, 0, 153, 0.3), 2px 2px 0 #000033;
+}
+.tool-button:hover { background: #660099; box-shadow: 0 0 15px rgba(255, 0, 153, 0.5); }
+.tool-button.active { background: #aa0066; color: #000000; }
+
+.palette { display:flex; gap:6px; padding-left:8px }
+.palette-color { width:20px; height:20px; border:2px solid #ffffff; cursor:pointer; image-rendering: pixelated; }
+
+.canvas-area {
+	margin-top:16px;
+	display:flex;
+	justify-content:center;
+	align-items:center;
+	padding: 20px;
+	background: linear-gradient(180deg, #0a0a0a 0%, #1a0033 100%);
+	border: 4px solid #004466;
+	box-shadow: 0 0 20px rgba(0, 68, 102, 0.5), 4px 4px 0 #003366, 8px 8px 0 #000033;
+	position: relative;
+	image-rendering: pixelated;
+}
+
+@keyframes borderGlow {
+	from {
+		border-color: rgba(0,160,255,0.5);
+		box-shadow: 0 6px 18px rgba(0,0,0,0.6) inset, 0 6px 18px rgba(0,0,0,0.4), 0 0 20px rgba(0,160,255,0.3);
+	}
+	to {
+		border-color: rgba(255,0,150,0.8);
+		box-shadow: 0 6px 18px rgba(0,0,0,0.6) inset, 0 6px 18px rgba(0,0,0,0.4), 0 0 20px rgba(255,0,150,0.5);
+	}
+}
+
+.canvas-area::before {
+	content: '';
+	position: absolute;
+	top: 20px;
+	left: 20px;
+	right: 20px;
+	bottom: 20px;
+	background-image:
+		linear-gradient(rgba(0,160,255,0.06) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(0,160,255,0.06) 1px, transparent 1px),
+		radial-gradient(circle at 10% 20%, rgba(255,255,255,0.03) 0.5px, transparent 0.6px);
+	background-size: 20px 20px, 20px 20px, 100px 100px;
+	animation: gridPulse 3s ease-in-out infinite;
+	pointer-events: none;
+}
+
+@keyframes gridPulse {
+	0%, 100% {
+		opacity: 0.5;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+.controls { display:flex; gap:12px; align-items:center }
+
+.status { margin-left: 12px; font-size:12px }

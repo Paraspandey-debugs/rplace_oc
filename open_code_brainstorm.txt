@@ -1,0 +1,275 @@
+Open Code — r/place-style event
+
+Goal
+
+Create a one-month r/place-like collaborative canvas for the "Open Code" event. Users must be unique and authenticated via GitHub login (one GitHub account = one user). The product should be lightweight to build quickly, resilient, and easy to scale for bursts of activity.
+
+Requirements (explicit + inferred)
+
+- GitHub OAuth for login and uniqueness (store GitHub user id as canonical user identifier).
+- Canvas where users can place pixels (or small tiles).
+- Enforce a cooldown per user between placements (configurable, e.g., 5 mins).
+- Realtime-ish updates to connected clients (WebSockets or polling).
+- Rate-limits and anti-abuse measures (per-user + per-IP + heuristics + admin overrides).
+- Simple admin tools: ban user, rollback tile ranges, export canvas snapshot.
+- Data durability: persistent store and backups.
+
+Stack options (shortlisted)
+
+1) Quick, pragmatic (recommendation)
+- Frontend: Next.js (React) — Vercel or serverful deployment
+- Auth: NextAuth.js with GitHub provider OR Supabase Auth using GitHub
+- Backend (APIs): Next.js API routes or small Node/Express service
+- DB: PostgreSQL (hosted or Supabase) for canonical storage
+- Cache/pubsub: Redis for locks, rate-limiting counters, and pub/sub
+- Realtime: WebSocket (Socket.IO) or Redis pub/sub + small socket server
+- Hosting: Vercel (frontend) + Fly/Render/Heroku for socket server and Redis/Postgres; or run everything on a single server with Docker for MVP
+- Why: fastest to implement with many ready libraries, easy GitHub OAuth, good ecosystem.
+
+2) All-in-one managed (fastest infra)
+- Frontend + Auth + DB + Realtime: Supabase (Postgres + Realtime) or Firebase (Auth + Firestore + Realtime)
+- Why: minimal infra, built-in GitHub OAuth in Supabase, realtime DB changes via replication. Trade-off: less control, vendor lock-in; Supabase realtime has pros for row-sync but may need chunking.
+
+3) Highly concurrent (scale-ready)
+- Backend: Elixir (Phoenix + Channels) for real concurrency and websockets
+- DB: Postgres, Redis for ephemeral state
+- Why: great for high concurrency and websocket scaling, but steeper learning curve.
+
+4) Performant compiled backend
+- Backend: Go or Rust for API + websockets, PostgreSQL, Redis
+- Why: performance, low cost at scale but slower to develop initially.
+
+Recommended for 1-month community event
+- Choice: Option 1 (Next.js + NextAuth or Supabase + Postgres + Redis) — balances speed, dev ergonomics, and scale.
+
+High-level system design
+
+Components
+- Client (browser): renders canvas, auth flow via OAuth redirect, places pixels, receives realtime updates.
+- Auth service: GitHub OAuth provider integrated by NextAuth or Supabase; returns canonical GitHub user id and user metadata.
+- API server: handles authenticated endpoints (place pixel, get tile, get canvas snapshot, admin endpoints). Validates cooldown and rate-limits.
+- DB (Postgres): authoritative pixel storage and placements log (audit trail).
+- Redis: in-memory counters for cooldowns, locks for concurrent writes, pub/sub for broadcasting updates to socket servers.
+- Socket server (or integrated API server): maintains websocket connections and broadcasts pixel updates.
+
+Data flow (place pixel)
+1) User clicks canvas-> JS calls API /api/place with (x,y,color) and JWT session.
+2) API authenticates session (verify GitHub id), checks cooldown via Redis key (user:{id}:cooldown) and per-IP counters.
+3) Acquire a short Redis lock for tile/chunk (e.g., tile:{tx}:{ty}:lock).
+4) Write update to Postgres: either per-pixel row or upsert into chunked tile table (see storage options).
+5) Publish event to Redis pub/sub channel with pixel delta.
+6) Socket servers subscribed to channel broadcast to connected clients.
+7) Release lock; respond to client with success/time-until-next-placement.
+
+Storage strategies for canvas (tradeoffs)
+
+- Per-pixel rows
+  - Table: pixels(x INT, y INT, color CHAR, last_modified TIMESTAMP, user_id BIGINT)
+  - Pros: simple, easy to query and audit.
+  - Cons: large number of rows for big canvases (e.g., 2000x2000 = 4M rows), heavy DB stress.
+
+- Chunked tiles (recommended)
+  - Divide canvas into tiles (e.g., 50x50 or 100x100). Store each tile as a binary blob (PNG/raw bytes/JSON colors) or as compressed array.
+  - Table: tiles(tx INT, ty INT, bitmap BYTEA, last_modified TIMESTAMP)
+  - When placing a pixel, load tile, update in memory, write back (optimistic concurrency or versioning).
+  - Pros: fewer rows, fewer writes if multiple pixels in same tile, better for snapshots.
+  - Cons: need optimistic concurrency control; larger reads/writes per change.
+
+- Hybrid: record placement events in placements log and maintain in-memory canvas for fast access; periodically compact to tiles in DB.
+
+API contract (minimal)
+- GET /api/canvas/snapshot -> returns full canvas (or tile manifests) for initial load (may return url to PNG or chunked tiles)
+- GET /api/canvas/tile?tx=..&ty=.. -> returns tile payload
+- POST /api/place { tx, ty, x, y, color } -> places pixel, returns cooldown info and success/failure
+- GET /api/me -> returns user info (GitHub id, username, avatar, nextAvailableAt)
+- Admin: POST /api/admin/ban, POST /api/admin/rollback, GET /api/admin/snapshot
+
+Auth & uniqueness (GitHub)
+- Use GitHub OAuth via NextAuth.js or Supabase. On successful login store: github_id (primary key), username, avatar, access token (optional, avoid storing long-term), created_at.
+- Uniqueness rule: one user per github_id — straightforward because OAuth returns unique GitHub user ID. If you need to prevent multiple accounts per human (e.g., alt accounts), consider later heuristics: email verification, 2FA requirement, or trust community moderation.
+- Session: issue a server-signed session cookie or JWT with user id. API servers must verify session.
+
+Security & anti-abuse
+- Per-user cooldown enforced in Redis (set key user:{id}:cooldown TTL=selected cooldown). API rejects if key exists.
+- Per-IP rate-limits and token bucket in Redis with short windows.
+- Lock writes per tile to avoid race conditions. Use short lock TTLs (e.g., 2s) and optimistic retries.
+- Bot detection: heuristics on behavior (fast clicking, many accounts from same IP ranges), optional CAPTCHA for suspicious requests.
+- Moderation: admin endpoints to ban/rollback; placements log for forensics.
+
+Scaling and performance
+- For initial month event, start on a single small VPS or managed services with horizontal scaling for socket servers.
+- Use Redis for pub/sub and cross-process broadcasting; socket servers subscribe to Redis.
+- Use CDN for static assets and initial canvas snapshot PNGs.
+- Backups: schedule Postgres backups (daily/hourly depending on importance).
+
+Edge cases
+- Race conditions when multiple users place same pixel simultaneously: last-write-wins, or first-write-wins depending on desired behavior. Usually r/place used last-write-wins with timestamp ordering.
+- Partial failures: if publish to pub/sub fails, still persist to DB and retry broadcast.
+- User tries to circumvent uniqueness with multiple GitHub accounts: limited by GitHub policy; can add heuristics and manual moderation.
+
+Monitoring & telemetry
+- Track metrics: placements/sec, active connections, error rates, DB write/latency, top users, banned users.
+- Use Sentry for errors, Prometheus + Grafana for metrics, and simple dashboard for counts.
+
+Development checkpoints (detailed)
+
+Checkpoint 0 — Project setup and discovery (1-2 days)
+- Create repo skeleton, license, README, project board.
+- Decide stack (pick one from options).
+- Create basic UI mockups (1-2 screens).
+
+Checkpoint 1 — Auth & user uniqueness (1-3 days)
+- Integrate GitHub OAuth (NextAuth or Supabase). Implement login flow and store canonical user record.
+- Endpoint GET /api/me returns github_id and username.
+- Tests for auth flow (happy path + token invalid).
+
+Checkpoint 2 — DB schema & storage plan (1 day)
+- Implement Postgres schema for users and placements/tiles.
+- Implement migrations and local dev DB.
+
+Checkpoint 3 — Basic canvas read + initial snapshot (1-3 days)
+- Implement endpoint to load canvas snapshot or tile manifest.
+- Frontend: show canvas, load tiles, render simple grid.
+
+Checkpoint 4 — Place pixel API + cooldown enforcement (2-4 days)
+- Implement POST /api/place with server checks: session auth, cooldown check (Redis), write to DB (tile upsert or row insert), publish event.
+- Return nextAvailableAt to client.
+- Unit tests for placement logic and cooldowns.
+
+Checkpoint 5 — Realtime updates (2-4 days)
+- Add websocket server (Socket.IO or WebSocket) and Redis pub/sub broadcast.
+- Clients connect to socket and receive placement deltas.
+- Ensure scale by making the socket server stateless and using Redis.
+
+Checkpoint 6 — Anti-abuse and moderation (2-4 days)
+- Add per-IP throttling, bot heuristics, CAPTCHA escalation.
+- Admin UI: ban/rollback, view placements log.
+
+Checkpoint 7 — Tests, CI and load testing (2-4 days)
+- Create test suite (auth, API, edge cases).
+- Set up GitHub Actions or similar for CI.
+- Run minimal load tests to estimate capacity and tune cooldown/DB settings.
+
+Checkpoint 8 — Deployment & runbook (1-2 days)
+- Dockerize components, provision Postgres and Redis, set environment variables, TLS, domain.
+- Prepare runbook for scaling during high-traffic days and backup procedures.
+
+Checkpoint 9 — Launch and monitoring (ongoing)
+- Soft launch to limited users, then full launch.
+- Monitor metrics and be ready to scale socket replicas and DB pooling.
+
+MVP feature list (minimal)
+- GitHub login (unique user per GitHub account).
+- View canvas; place pixel at coordinate with cooldown feedback.
+- Realtime updates so clients see others' placements.
+- Basic admin tools: ban user, rollback chunks, export snapshot.
+
+Next steps I can take for you
+
+- If you want: pick the recommended stack (Next.js + NextAuth + Postgres + Redis) and scaffold a minimal repo with auth + place endpoint + simple frontend canvas (I can implement an MVP skeleton).
+- Or: prepare a Docker-compose dev environment with Postgres + Redis + Next.js skeleton + instructions.
+- Or: scaffold Supabase-based approach for faster infrastructure and realtime using Supabase.
+
+Notes and assumptions
+
+- Assumed event canvas size is moderate (e.g., up to 2000x2000). If you expect much larger canvases or extremely high write rates, we'd choose more specialized storage and stronger horizontal scaling.
+- Assumed GitHub login is acceptable to users; GitHub rate-limits OAuth app requests but typical usage for login is fine.
+- Chosen cooldown defaults (e.g., 5 minutes) are configurable in server settings.
+
+Appendix: Minimal DB schemas (example)
+
+-- users
+CREATE TABLE users (
+  id BIGSERIAL PRIMARY KEY,
+  github_id BIGINT UNIQUE NOT NULL,
+  login TEXT,
+  avatar_url TEXT,
+  created_at TIMESTAMP DEFAULT now()
+);
+
+-- placements (audit log, append-only)
+CREATE TABLE placements (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT REFERENCES users(id),
+  tx INT, ty INT, x INT, y INT, color CHAR(7),
+  created_at TIMESTAMP DEFAULT now()
+);
+
+-- tiles (chunked storage)
+CREATE TABLE tiles (
+  tx INT,
+  ty INT,
+  bitmap BYTEA,
+  version BIGINT DEFAULT 0,
+  last_modified TIMESTAMP DEFAULT now(),
+  PRIMARY KEY(tx,ty)
+);
+
+Operation: when placing, append to placements, update tile with optimistic version check.
+
+--- end of brainstorm ---
+
+
+High-performance + quick-iteration stacks (focused)
+
+If your top priorities are raw throughput and low-latency real-time updates while still being able to iterate quickly during the month-long event, here are focused options with trade-offs.
+
+1) Go (recommended balance)
+- Backend: Go with Fast HTTP frameworks (Fiber or Gin + fasthttp or plain net/http). Use gorilla/websocket or nhooyr/websocket for websockets.
+- DB: PostgreSQL. Cache/pubsub: Redis (for cooldowns, locks, pub/sub).
+- Why: Compiled language with very fast compile times, easy concurrency model (goroutines), large ecosystem, easy to cross-compile and deploy. Fast to iterate compared to C++/Rust. Good performance under high concurrency.
+- Auth: implement GitHub OAuth using goth or use a small Next.js auth frontend issuing JWTs that Go verifies.
+
+2) Rust (high perf, safer, slower iteration)
+- Backend: Axum or Actix-web + Tokio runtime. Use tokio-tungstenite or warp's websocket support.
+- DB: Postgres via sqlx or sea-orm. Redis via redis-async.
+- Why: Excellent performance and safety (no GC). If you need maximum efficiency per CPU, Rust is great. Iteration speed is slower than Go for many teams, but still reasonable with good tooling (cargo-watch).
+
+3) C++ with Drogon (very high perf, steeper dev)
+- Backend: Drogon provides an async HTTP/WebSocket framework with very low latency. You get C++ performance and control.
+- Why not always: C++ gives absolute performance but increases dev friction: more complex build chains, harder memory-safety debugging, slower iteration (longer compile/test cycles) and fewer high-level libraries for quick features like OAuth, migrations, and ORMs compared with Go/Rust/Node. If your team is already proficient in C++ and needs that last bit of latency, Drogon is an option.
+
+4) Elixir + Phoenix (concurrency + rapid iteration for websockets)
+- Backend: Phoenix (Channels/LiveView) with PubSub. DB: Postgres. Use Phoenix Presence for connected users and PubSub for broadcasts.
+- Why: Extremely productive for websocket-heavy apps. Hot code reloading and excellent concurrency make it easy to iterate during an event. Per-request raw throughput may be lower than Go/Rust/C++ in microbenchmarks, but Phoenix excels at handling many concurrent websocket connections.
+
+5) Hybrid approach (fast UI + compiled realtime core)
+- Pattern: Use a Node/Next.js frontend for auth and fast UI iteration (NextAuth for GitHub). Backend realtime core in Go (or Rust) handling placements and pub/sub. Session and API auth via JWTs or a signed cookie.
+- Why: You get the best of both worlds — very fast frontend/dev iteration and a high-performance backend tuned for concurrency.
+
+Drogon evaluation (short)
+
+- Pros: Very high performance, C++ ecosystem native benefits, low-level control of memory/CPU and predictable latency.
+- Cons: More complex build and dependency management, slower dev loops, harder to find high-level libraries (OAuth, migrations, ORMs) that are as ergonomic as in Go/Node/Rust. Debugging memory issues is also more costly.
+
+Concrete recommended high-performance stack (my pick for "high perf + quick changes")
+
+- Frontend: Next.js or SvelteKit for rapid UI iteration and GitHub OAuth (NextAuth if Next.js).
+- Realtime/core API: Go (Gin/Fiber) service exposing REST + websocket endpoints. Use goroutines for concurrency and a small worker pool for DB writes if desired.
+- Storage: Postgres for durability (placements log + tiles), Redis for cooldowns, locks, and pub/sub.
+- Auth flow: Use NextAuth.js on the frontend to handle GitHub OAuth and issue a short-lived JWT or signed session cookie. The Go backend validates the JWT on /api/place.
+- Dev ergonomics: use air or CompileDaemon for live reload in Go; use Docker Compose for local Postgres + Redis.
+
+Why this choice?
+- Go gives near-C-level throughput for many real-time workloads with much faster iteration and a gentler learning curve than C++.
+- Keeping frontend in Next.js speeds UI changes and simplifies GitHub OAuth. The split lets you push frontend changes quickly while keeping a fast, simple backend.
+
+Short implementation plan for the recommended stack (fast path)
+
+1) Scaffold Next.js frontend with NextAuth (GitHub provider). Implement /api/auth and /api/me.
+2) Scaffold Go backend with endpoints: GET /canvas/tile, POST /place, and a websocket endpoint /ws (or use a small socket server). Implement JWT verification middleware.
+3) Local dev: Docker Compose with Postgres + Redis + Next.js + Go service.
+4) Implement cooldown logic in Redis (SET user:{id}:cooldown NX PX=TTL). On place, atomically check lock and push an append-only placements row and a tile upsert.
+5) Use Redis pub/sub to broadcast placements; socket server subscribes and forwards to connected clients.
+
+Notes and trade-offs
+
+- If you want absolute maximum horizontal connection capacity and developer productivity for websockets, consider Phoenix. If you prefer compiled stacks and simpler deployments, Go is my recommendation.
+- If you have team expertise in C++ and want to squeeze every last millisecond and CPU, Drogon is viable — but plan for higher engineering cost.
+
+Quick next steps I can do for you
+
+- Scaffold the "fast path" stack: a minimal Next.js app (NextAuth) + Go service with /place and WebSocket scaffold, plus a Docker Compose for Postgres + Redis. This gives a local dev loop and an MVP that enforces GitHub uniqueness.
+- Or scaffold the Drogon C++ project skeleton that implements GitHub OAuth and a minimal place API if you want to explore the C++ route.
+
+--- end of brainstorm ---

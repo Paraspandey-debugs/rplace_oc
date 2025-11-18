@@ -1,0 +1,32 @@
+{
+  "name": "open-code-rplace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint",
+    "bot": "node scripts/run_bot.js"
+  },
+  "dependencies": {
+    "@fontsource/press-start-2p": "^5.2.7",
+    "axios": "1.5.0",
+    "express-rate-limit": "^8.2.1",
+    "ioredis": "5.3.2",
+    "jimp": "0.22.10",
+    "mongoose": "^8.0.0",
+    "next": "^14.2.0",
+    "next-auth": "^4.24.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "winston": "^3.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "20.4.2",
+    "@types/react": "^18.3.0",
+    "eslint": "8.47.0",
+    "eslint-config-next": "^14.2.0",
+    "typescript": "^5.6.0"
+  }
+}
