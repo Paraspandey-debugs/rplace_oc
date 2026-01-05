@@ -21,7 +21,7 @@ const GRID = parseInt(process.env.NEXT_PUBLIC_CANVAS_GRID || '20', 10)
  * Main Canvas component for the r/place-like collaborative drawing application.
  * Handles user interactions, pixel placement, and real-time canvas updates.
  */
-export default function Canvas({ session }: { session: any }) {
+export default function Canvas({ session, sessionStatus, userStats, onStatsUpdate }: { session: any, sessionStatus: string, userStats: any, onStatsUpdate?: (optimisticDailyPixels?: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const {
     color, setColor,
@@ -36,7 +36,7 @@ export default function Canvas({ session }: { session: any }) {
     showAlliancePanel, setShowAlliancePanel,
     currentEvent,
     loadingTimeoutRef
-  } = useCanvasState(session)
+  } = useCanvasState(session, sessionStatus)
 
   useCanvasDrawing(canvasRef, mode, forceRedraw, setForceRedraw, setLoading, loadingTimeoutRef)
 
@@ -47,13 +47,15 @@ export default function Canvas({ session }: { session: any }) {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-
-
-    // Paint a single pixel at the clicked position
-    async function paintAt(clientX: number, clientY: number) {
+    // Paint function defined outside to avoid recreation
+    const paintAt = async (clientX: number, clientY: number) => {
+      if (sessionStatus === 'loading') {
+        // Session is still loading, don't show login prompt
+        return
+      }
       if (!session?.user) {
         setShowLoginPrompt(true)
-        return;
+        return
       }
 
       const rect = canvas.getBoundingClientRect()
@@ -61,6 +63,12 @@ export default function Canvas({ session }: { session: any }) {
       const y = clientY - rect.top
       const cellX = Math.floor(x / GRID)
       const cellY = Math.floor(y / GRID)
+
+      // Bounds checking
+      if (cellX < 0 || cellY < 0 || cellX >= Math.floor(DEFAULT_WIDTH / GRID) || cellY >= Math.floor(DEFAULT_HEIGHT / GRID)) {
+        return
+      }
+
       const colorToUse = tool === 'erase' ? '#ffffff' : color
 
       // Capture the current color before drawing for potential revert on failure
@@ -76,52 +84,63 @@ export default function Canvas({ session }: { session: any }) {
       if ('imageSmoothingEnabled' in ctx) (ctx as any).imageSmoothingEnabled = false
       ctx.fillRect(cellX * GRID, cellY * GRID, GRID, GRID)
 
-      // Send placement request to server
-      const res = await fetch('/api/place', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ x: cellX, y: cellY, color: colorToUse })
-      })
+      try {
+        // Send placement request to server
+        const res = await fetch('/api/place', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ x: cellX, y: cellY, color: colorToUse })
+        })
 
-      if (!res.ok) {
-        const data = await res.json()
-        if (data.error === 'cooldown') {
-          setErrorMessage(`On cooldown for ${data.remainingSeconds} seconds`)
-        } else {
-          setErrorMessage('Failed to place pixel')
+        if (!res.ok) {
+          const data = await res.json()
+          if (data.error === 'cooldown') {
+            setErrorMessage(`On cooldown for ${data.remainingSeconds} seconds`)
+          } else {
+            setErrorMessage('Failed to place pixel')
+          }
+          // Revert the local change if server rejects the placement
+          ctx.fillStyle = prevColor
+          ctx.fillRect(cellX * GRID, cellY * GRID, GRID, GRID)
+          return
         }
-        // Revert the local change if server rejects the placement
+
+        setErrorMessage('')
+        // Update user stats after successful placement (optimistic update)
+        if (onStatsUpdate && userStats) {
+          const optimisticDailyPixels = (userStats.dailyPixelsUsed || 0) + 1
+          onStatsUpdate(optimisticDailyPixels)
+        }
+      } catch (error) {
+        // Network error - revert
         ctx.fillStyle = prevColor
         ctx.fillRect(cellX * GRID, cellY * GRID, GRID, GRID)
-        return
+        setErrorMessage('Network error - please try again')
       }
-
-      setErrorMessage('')
     }
 
     // Event listeners for mouse painting
-    function onDown(e: MouseEvent) {
+    const onDown = (e: MouseEvent) => {
       paintAt(e.clientX, e.clientY)
     }
 
-    // Removed drag painting to enforce per-click placement
-
-    canvas.addEventListener('mousedown', onDown)
-
     // Touch support for mobile
-    function onTouchStart(ev: TouchEvent) {
+    const onTouchStart = (ev: TouchEvent) => {
       ev.preventDefault()
-      paintAt(ev.touches[0].clientX, ev.touches[0].clientY)
+      if (ev.touches.length > 0) {
+        paintAt(ev.touches[0].clientX, ev.touches[0].clientY)
+      }
     }
 
+    canvas.addEventListener('mousedown', onDown)
     canvas.addEventListener('touchstart', onTouchStart, { passive: false })
 
     return () => {
       canvas.removeEventListener('mousedown', onDown)
       canvas.removeEventListener('touchstart', onTouchStart)
     }
-  }, [color, tool, session])
+  }, [session, sessionStatus, color, tool, setShowLoginPrompt, setErrorMessage, onStatsUpdate, userStats]) // Include dependencies for paintAt function
 
   return (
     <div className={styles.canvasContainer}>

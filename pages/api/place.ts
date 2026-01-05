@@ -58,8 +58,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
       }
 
-      // Calculate allowed pixels: points / 5
-      const allowedPixels = Math.floor(dbUser.points / 5)
+      // Calculate allowed pixels: points / 5, minimum 10
+      let allowedPixels = Math.floor(dbUser.points / 5)
+      if (allowedPixels < 10) {
+        allowedPixels = 10
+      }
       if (dbUser.dailyPixelsUsed >= allowedPixels) {
         return res.status(429).json({ ok: false, error: 'daily-limit-reached', used: dbUser.dailyPixelsUsed, allowed: allowedPixels })
       }
@@ -98,25 +101,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Publish update to Redis for realtime
     await redis.publish('canvas-updates', JSON.stringify({ x, y, color, userId: isBot ? 'bot' : dbUser.id, createdAt: new Date() }))
 
-    // Check for event bonus
-    let pointsAwarded = 1
+    // Check for event bonus (affects cooldown or other mechanics)
     try {
       const eventRes = await fetch('http://localhost:3000/api/events') // Internal call
       if (eventRes.ok) {
         const eventData = await eventRes.json()
         if (eventData.event) {
-          pointsAwarded = eventData.event.bonusPoints || 1
+          // Event logic can be added here if needed
         }
       }
     } catch (e) {
       // Ignore
     }
 
-    // Update user stats if not bot
+    // Update user stats if not bot (only track daily usage, points come from external leaderboard)
     if (!isBot && dbUser) {
       await prisma.user.update({
         where: { id: dbUser.id },
-        data: { dailyPixelsUsed: { increment: 1 }, points: { increment: pointsAwarded } }
+        data: { dailyPixelsUsed: { increment: 1 } }
       })
     }
 

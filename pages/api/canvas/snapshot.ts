@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { prisma } from 'utils/prisma'
-import redis from 'utils/redis'
-import logger from 'utils/logger'
+import { prisma } from '../../../utils/prisma'
+import redis from '../../../utils/redis'
+import logger from '../../../utils/logger'
 
 const CANVAS_WIDTH = parseInt(process.env.CANVAS_WIDTH || '1600', 10)
 const CANVAS_HEIGHT = parseInt(process.env.CANVAS_HEIGHT || '1000', 10)
@@ -28,8 +28,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Get latest placements per cell
-    const placements = since
-      ? await prisma.$queryRaw`SELECT p.x, p.y, p.color, p.userId, p.createdAt FROM Placement p INNER JOIN (SELECT x, y, MAX(createdAt) as maxCreatedAt FROM Placement WHERE createdAt > ${since} GROUP BY x, y) latest ON p.x = latest.x AND p.y = latest.y AND p.createdAt = latest.maxCreatedAt`
+    const placements: Array<{x: number, y: number, color: string, userId: string | null, createdAt: Date}> = since
+      ? await prisma.$queryRaw`SELECT p.x, p.y, p.color, p.userId, p.createdAt FROM Placement p INNER JOIN (SELECT x, y, MAX(createdAt) as maxCreatedAt FROM Placement WHERE createdAt >= ${since} GROUP BY x, y) latest ON p.x = latest.x AND p.y = latest.y AND p.createdAt = latest.maxCreatedAt`
       : await prisma.$queryRaw`SELECT p.x, p.y, p.color, p.userId, p.createdAt FROM Placement p INNER JOIN (SELECT x, y, MAX(createdAt) as maxCreatedAt FROM Placement GROUP BY x, y) latest ON p.x = latest.x AND p.y = latest.y AND p.createdAt = latest.maxCreatedAt`
 
     // For full snapshot, cache it

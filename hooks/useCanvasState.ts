@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 
-export const useCanvasState = (session: any) => {
+export const useCanvasState = (session: any, sessionStatus?: string) => {
   const [color, setColor] = useState<string>('#000000')
   const [tool, setTool] = useState<'pencil' | 'erase' | 'fill'>('pencil')
   const [loading, setLoading] = useState<boolean>(true)
@@ -16,6 +16,10 @@ export const useCanvasState = (session: any) => {
 
   // Fetch available placements
   const fetchAvailable = async () => {
+    if (sessionStatus === 'loading') {
+      setAvailablePlacements('Loading...')
+      return
+    }
     if (!session?.user?.email) {
       setAvailablePlacements('Sign in to see limit')
       return
@@ -49,7 +53,7 @@ export const useCanvasState = (session: any) => {
     fetchEvent()
     const interval = setInterval(fetchAvailable, 10000) // Update every 10s
     return () => clearInterval(interval)
-  }, [session])
+  }, [session, sessionStatus])
 
   return {
     color, setColor,

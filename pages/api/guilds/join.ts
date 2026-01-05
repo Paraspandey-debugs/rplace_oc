@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '../auth/[...nextauth]'
-import connectToDatabase from '../../../utils/mongo'
-import { Alliance } from '../../../utils/models'
+import { prisma } from '../../../utils/prisma'
 import { z } from 'zod'
 
 const joinGuildSchema = z.object({
@@ -22,10 +21,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { guildId } = joinGuildSchema.parse(req.body)
 
-    await connectToDatabase()
-
     // Check if alliance exists
-    const guild = await (Alliance as any).findById(guildId as string)
+    const guild = await prisma.alliance.findUnique({
+      where: { id: guildId },
+      include: { members: true }
+    })
     if (!guild) {
       return res.status(404).json({ error: 'Alliance not found' })
     }
@@ -36,29 +36,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Already a member of this alliance' })
     }
 
-    // Check if user is already in another alliance and remove them
-    const existingMembership = await ((Alliance as any).findOne({
-      'members.userId': session.user.email
-    }) as any)
+    // Use transaction to handle membership changes atomically
+    await prisma.$transaction(async (tx) => {
+      // Check if user is already in another alliance and remove them
+      const existingMembership = await tx.allianceMember.findFirst({
+        where: { userId: session.user.email! },
+        include: { alliance: true }
+      })
 
-    if (existingMembership) {
-      // Remove from old alliance
-      existingMembership.members = existingMembership.members.filter(
-        member => member.userId !== session.user.email
-      )
-      existingMembership.memberCount = existingMembership.members.length
-      await existingMembership.save()
-    }
+      if (existingMembership) {
+        // Remove from old alliance
+        await tx.allianceMember.delete({
+          where: { id: existingMembership.id }
+        })
+        // Update member count
+        await tx.alliance.update({
+          where: { id: existingMembership.allianceId },
+          data: { memberCount: { decrement: 1 } }
+        })
+      }
 
-    // Add user to new alliance
-    guild.members.push({
-      userId: session.user.email,
-      username: session.user.name,
-      role: 'member',
-      joinedAt: new Date()
+      // Add user to new alliance
+      await tx.allianceMember.create({
+        data: {
+          allianceId: guildId,
+          userId: session.user.email!,
+          username: session.user.name!,
+          role: 'member'
+        }
+      })
+
+      // Update member count
+      await tx.alliance.update({
+        where: { id: guildId },
+        data: { memberCount: { increment: 1 } }
+      })
     })
-    guild.memberCount = guild.members.length
-    await guild.save()
 
     return res.status(200).json({ ok: true })
 

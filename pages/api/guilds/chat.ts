@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '../auth/[...nextauth]'
-import connectToDatabase from '../../../utils/mongo'
-import { Alliance, AllianceChat } from '../../../utils/models'
+import { prisma } from '../../../utils/prisma'
 import { z } from 'zod'
 
 const sendMessageSchema = z.object({
@@ -20,10 +19,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const { guildId, message } = sendMessageSchema.parse(req.body)
-      await connectToDatabase()
 
       // Check if user is member of alliance
-      const alliance = await (Alliance as any).findById(guildId as string)
+      const alliance = await prisma.alliance.findUnique({
+        where: { id: guildId },
+        include: { members: true }
+      })
       if (!alliance) {
         return res.status(404).json({ error: 'Alliance not found' })
       }
@@ -34,14 +35,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Add message to alliance chat
-      const chatMessage = new AllianceChat({
-        allianceId: guildId,
-        userId: session.user.email,
-        username: session.user.name,
-        message
+      await prisma.allianceChat.create({
+        data: {
+          allianceId: guildId,
+          userId: session.user.email!,
+          username: session.user.name!,
+          message
+        }
       })
-
-      await chatMessage.save()
 
       return res.status(201).json({ ok: true })
 
@@ -65,10 +66,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!guildId || typeof guildId !== 'string') {
         return res.status(400).json({ error: 'Alliance ID required' })
       }
-      await connectToDatabase()
 
       // Check if user is member of alliance
-      const alliance = await (Alliance as any).findById(guildId as string)
+      const alliance = await prisma.alliance.findUnique({
+        where: { id: guildId },
+        include: { members: true }
+      })
       if (!alliance) {
         return res.status(404).json({ error: 'Alliance not found' })
       }
@@ -79,12 +82,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Get recent messages (last 50)
-      const messages = await ((AllianceChat as any).find({ allianceId: guildId }) as any)
-        .sort({ timestamp: -1 })
-        .limit(50)
+      const messages = await prisma.allianceChat.findMany({
+        where: { allianceId: guildId },
+        orderBy: { timestamp: 'desc' },
+        take: 50
+      })
 
       const formattedMessages = messages.reverse().map(msg => ({
-        id: msg._id.toString(),
+        id: msg.id,
         userId: msg.userId,
         username: msg.username,
         message: msg.message,

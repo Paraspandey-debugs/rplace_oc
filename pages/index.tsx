@@ -7,15 +7,28 @@ import Canvas from '../components/Canvas'
 // Home page component for the OpenCode IIITA Pixel Canvas app
 export default function Home() {
   // Get the current user session from NextAuth
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   // State for user statistics (pixels placed, cooldown)
   const [userStats, setUserStats] = useState<any>(null)
 
+  // Function to refresh user stats
+  const refreshUserStats = async (optimisticDailyPixels?: number) => {
+    if (session) {
+      // Optimistically update UI immediately
+      if (optimisticDailyPixels !== undefined && userStats) {
+        setUserStats({ ...userStats, dailyPixelsUsed: optimisticDailyPixels })
+      }
+
+      // Then sync with server
+      const response = await fetch('/api/me')
+      const data = await response.json()
+      setUserStats(data)
+    }
+  }
+
   // Fetch user stats when session is available
   useEffect(() => {
-    if (session) {
-      fetch('/api/me').then(r => r.json()).then(data => setUserStats(data))
-    }
+    refreshUserStats()
   }, [session])
 
   return (
@@ -75,7 +88,7 @@ export default function Home() {
         </nav>
 
         {/* Main canvas component for pixel painting */}
-        <Canvas session={session} />
+        <Canvas session={session} sessionStatus={status} userStats={userStats} onStatsUpdate={refreshUserStats} />
       </main>
     </div>
   )

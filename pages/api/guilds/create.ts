@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '../auth/[...nextauth]'
-import connectToDatabase from '../../../utils/mongo'
-import { Alliance } from '../../../utils/models'
+import { prisma } from '../../../utils/prisma'
 import { z } from 'zod'
 
 const createGuildSchema = z.object({
@@ -23,43 +22,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { name, description } = createGuildSchema.parse(req.body)
 
-    await connectToDatabase()
-
     // Check if alliance name already exists
-    const existingAlliance = await (Alliance as any).findOne({ name })
+    const existingAlliance = await prisma.alliance.findUnique({
+      where: { name }
+    })
     if (existingAlliance) {
       return res.status(400).json({ error: 'Alliance name already exists' })
     }
 
-    // Create new alliance
-    const guild = new Alliance({
-      name,
-      description,
-      ownerId: session.user.email,
-      memberCount: 1,
-      members: [{
-        userId: session.user.email,
-        username: session.user.name,
-        role: 'owner',
-        joinedAt: new Date()
-      }],
-      canvasId: `alliance-${Date.now()}`
+    // Create new alliance with member
+    const guild = await prisma.alliance.create({
+      data: {
+        name,
+        description,
+        ownerId: session.user.email!,
+        canvasId: `alliance-${Date.now()}`,
+        claimedAreas: '[]',
+        members: {
+          create: {
+            userId: session.user.email!,
+            username: session.user.name!,
+            role: 'owner'
+          }
+        }
+      },
+      include: {
+        members: true
+      }
     })
-
-    const savedGuild = await guild.save()
 
     return res.status(201).json({
       ok: true,
       guild: {
-        id: savedGuild._id.toString(),
-        name: savedGuild.name,
-        description: savedGuild.description,
-        memberCount: savedGuild.memberCount,
-        createdAt: savedGuild.createdAt.toISOString(),
-        ownerId: savedGuild.ownerId,
-        canvasId: savedGuild.canvasId,
-        points: savedGuild.points || 0,
-        claimedAreasCount: (savedGuild.claimedAreas || []).length
+        id: guild.id,
+        name: guild.name,
+        description: guild.description,
+        memberCount: guild.memberCount,
+        createdAt: guild.createdAt.toISOString(),
+        ownerId: guild.ownerId,
+        canvasId: guild.canvasId,
+        points: guild.points,
+        claimedAreasCount: JSON.parse(guild.claimedAreas || '[]').length
       }
     })
 

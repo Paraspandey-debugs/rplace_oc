@@ -5,6 +5,8 @@ import { prisma } from '../../utils/prisma'
 import redis from '../../utils/redis'
 
 const COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes
+const LEADERBOARD_CACHE_KEY = 'leaderboard:cache'
+const LEADERBOARD_CACHE_TTL = 300 // 5 minutes
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions)
@@ -18,12 +20,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let dailyPixelsUsed = 0
   let allowedPixels = 10
   if (dbUser) {
-    // Update points from external leaderboard
+    // Update points from external leaderboard (with caching)
     try {
-      const response = await fetch(`${process.env.NEXTAUTH_URL}/api/external-leaderboard`)
-      const data = await response.json()
-      if (data.ok) {
-        const entry = data.leaderboard.find((e: any) => e.username === session.user.name)
+      let leaderboard = await redis.get(LEADERBOARD_CACHE_KEY)
+      if (!leaderboard) {
+        const response = await fetch(`${process.env.NEXTAUTH_URL}/api/external-leaderboard`)
+        const data = await response.json()
+        if (data.ok) {
+          leaderboard = JSON.stringify(data.leaderboard)
+          await redis.setex(LEADERBOARD_CACHE_KEY, LEADERBOARD_CACHE_TTL, leaderboard)
+        }
+      }
+      
+      if (leaderboard) {
+        const leaderboardData = JSON.parse(leaderboard)
+        const entry = leaderboardData.find((e: any) => e.username === session.user.name)
         if (entry) {
           await prisma.user.update({
             where: { id: dbUser.id },
@@ -44,11 +55,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     if (dbUser.lastPixelReset < today) {
+      // Reset daily pixels and update last reset time
+      await prisma.user.update({
+        where: { id: dbUser.id },
+        data: { dailyPixelsUsed: 0, lastPixelReset: today }
+      })
       dailyPixelsUsed = 0
     } else {
       dailyPixelsUsed = dbUser.dailyPixelsUsed
     }
     allowedPixels = Math.floor(points / 5)
+    // Give new users a minimum of 10 pixels to get started
+    if (allowedPixels < 10) {
+      allowedPixels = 10
+    }
   }
 
   // Get pixel count
