@@ -1,4 +1,5 @@
 import Head from 'next/head'
+import Link from 'next/link'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import Canvas from '../components/Canvas'
@@ -28,7 +29,10 @@ export default function Home() {
       <main style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 20, fontFamily: 'Press Start 2P', imageRendering: 'pixelated' }}>
         {/* Navigation bar with title and authentication info */}
         <nav style={{ width: '100%', maxWidth: '1200px', background: 'rgba(0,0,0,0.8)', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '2px solid #aa0066', boxShadow: '0 0 10px rgba(170, 0, 102, 0.5)', marginBottom: 20 }}>
-          <h1 style={{ fontSize: '16px', color: '#ffffff', margin: 0 }}>OpenCode IIITA - Pixel Canvas</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <h1 style={{ fontSize: '16px', color: '#ffffff', margin: 0 }}>OpenCode IIITA - Pixel Canvas</h1>
+            <Link href="/help" style={{ fontSize: '12px', color: '#ffffff', textDecoration: 'none' }}>Help</Link>
+          </div>
           <div>
             {/* Show sign out option if user is signed in */}
             {session ? (
@@ -36,7 +40,7 @@ export default function Home() {
                 <p style={{ fontSize: '8px', color: '#ffffff', margin: 0 }}>Signed in as {session.user?.name}</p>
                 {/* Display user stats if available */}
                 {userStats && (
-                  <p style={{ fontSize: '8px', color: '#ffffff', margin: 0 }}>Pixels: {userStats.pixels} • Cooldown: {userStats.cooldownSeconds}s</p>
+                  <p style={{ fontSize: '8px', color: '#ffffff', margin: 0 }}>Pixels: {userStats.pixels} • Points: {userStats.points} • Daily: {userStats.dailyPixelsUsed}/{userStats.allowedPixels} • Cooldown: {userStats.cooldownSeconds}s</p>
                 )}
                 <button onClick={() => signOut()} style={{
                   background: '#7c7c7c',

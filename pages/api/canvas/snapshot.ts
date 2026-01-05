@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import dbConnect from 'utils/mongo'
-import { Placement } from 'utils/models'
+import { prisma } from 'utils/prisma'
 import redis from 'utils/redis'
 import logger from 'utils/logger'
 
@@ -15,8 +14,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     if (req.method !== 'GET') return res.status(405).json({ ok: false, error: 'method' })
 
-    await dbConnect()
-
     const cols = Math.floor(CANVAS_WIDTH / GRID)
     const rows = Math.floor(CANVAS_HEIGHT / GRID)
     const since = req.query.since ? new Date(parseInt(req.query.since as string)) : null
@@ -30,21 +27,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Aggregate latest placements per cell, optionally since timestamp
-    const matchStage = since ? { createdAt: { $gt: since } } : {}
-    const placements = await Placement.aggregate([
-      { $match: matchStage },
-      { $sort: { createdAt: -1 } },
-      {
-        $group: {
-          _id: { x: '$x', y: '$y' },
-          color: { $first: '$color' },
-          userId: { $first: '$userId' },
-          createdAt: { $first: '$createdAt' }
-        }
-      },
-      { $project: { _id: 0, x: '$_id.x', y: '$_id.y', color: 1, userId: 1, createdAt: 1 } }
-    ])
+    // Get latest placements per cell
+    const placements = since
+      ? await prisma.$queryRaw`SELECT p.x, p.y, p.color, p.userId, p.createdAt FROM Placement p INNER JOIN (SELECT x, y, MAX(createdAt) as maxCreatedAt FROM Placement WHERE createdAt > ${since} GROUP BY x, y) latest ON p.x = latest.x AND p.y = latest.y AND p.createdAt = latest.maxCreatedAt`
+      : await prisma.$queryRaw`SELECT p.x, p.y, p.color, p.userId, p.createdAt FROM Placement p INNER JOIN (SELECT x, y, MAX(createdAt) as maxCreatedAt FROM Placement GROUP BY x, y) latest ON p.x = latest.x AND p.y = latest.y AND p.createdAt = latest.maxCreatedAt`
 
     // For full snapshot, cache it
     if (!since) {
@@ -54,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       logger.info('Diff snapshot generated', { placementCount: placements.length, since: since?.toISOString(), duration: Date.now() - start })
     }
 
-    return res.status(200).json({ ok: true, placements, cols, rows })
+    return res.status(200).json({ ok: true, placements, cols, rows, timestamp: Date.now() })
   } catch (error) {
     logger.error('Error in /api/canvas/snapshot', { error: error.message, stack: error.stack })
     return res.status(500).json({ ok: false, error: 'internal-server-error' })

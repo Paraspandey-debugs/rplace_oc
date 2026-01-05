@@ -63,7 +63,6 @@ A collaborative, real-time pixel art canvas inspired by Reddit's r/place experim
    # Edit .env.local with:
    # - GITHUB_ID, GITHUB_SECRET (from GitHub OAuth app)
    # - NEXTAUTH_SECRET, NEXTAUTH_URL
-   # - MONGODB_URI
    # - REDIS_URL
    # - BOT_API_KEY (optional, for admin bot access)
    ```

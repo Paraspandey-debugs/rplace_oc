@@ -1,0 +1,100 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(cuid())
+  name             String?
+  email            String   @unique
+  image            String?
+  githubId         String?
+  points           Int      @default(0)
+  dailyPixelsUsed  Int      @default(0)
+  lastPixelReset   DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  placements       Placement[]
+  allianceMembers  AllianceMember[]
+}
+
+model Placement {
+  id        String   @id @default(cuid())
+  x         Int
+  y         Int
+  color     String
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([x, y])
+  @@index([createdAt])
+}
+
+model DailyGrid {
+  id     String   @id @default(cuid())
+  date   DateTime @unique
+  grid   String   // JSON string for 2D array
+  width  Int
+  height Int
+}
+
+model ExternalLeaderboard {
+  id        String   @id @default(cuid())
+  username  String
+  points    Int
+  rank      Int
+  scrapedAt DateTime @default(now())
+}
+
+model Alliance {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  description  String   @default("")
+  ownerId      String
+  memberCount  Int      @default(1)
+  canvasId     String
+  points       Int      @default(0)
+  claimedAreas String   // JSON string for array of areas
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members      AllianceMember[]
+  chats        AllianceChat[]
+}
+
+model AllianceMember {
+  id         String   @id @default(cuid())
+  userId     String
+  username   String
+  role       String   @default("member") // owner, admin, member
+  joinedAt   DateTime @default(now())
+
+  allianceId String
+  alliance   Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([allianceId, userId])
+}
+
+model AllianceChat {
+  id         String   @id @default(cuid())
+  allianceId String
+  userId     String
+  username   String
+  message    String
+  timestamp  DateTime @default(now())
+
+  alliance   Alliance @relation(fields: [allianceId], references: [id], onDelete: Cascade)
+
+  @@index([allianceId, timestamp])
+}

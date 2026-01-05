@@ -75,8 +75,7 @@ body::before {
 
 /* Window-like container for canvas */
 .window {
-	width: calc(100% - 40px);
-	max-width: 1200px;
+	width: 100%;
 	margin: 32px 0;
 	background: linear-gradient(180deg, #1a0033 0%, #0a0a0a 100%);
 	border: 4px solid #aa0066;
@@ -293,9 +292,8 @@ body::before {
 }
 
 .window {
-	width: calc(100% - 40px);
-	max-width: 1200px;
-	margin: 32px 0;
+	width: fit-content;
+	margin: 32px auto;
 	background: linear-gradient(180deg, #1a0033 0%, #0a0a0a 100%);
 	border: 4px solid #aa0066;
 	box-shadow: 0 0 20px rgba(170, 0, 102, 0.5), 8px 8px 0 #330066, 16px 16px 0 #000033;
@@ -378,9 +376,6 @@ body::before {
 }
 .tool-button:hover { background: #660099; box-shadow: 0 0 15px rgba(255, 0, 153, 0.5); }
 .tool-button.active { background: #aa0066; color: #000000; }
-
-.palette { display:flex; gap:6px; padding-left:8px }
-.palette-color { width:20px; height:20px; border:2px solid #ffffff; cursor:pointer; image-rendering: pixelated; }
 
 .canvas-area {
 	margin-top:16px;

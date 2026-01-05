@@ -1,5 +1,8 @@
 import NextAuth, { type AuthOptions } from 'next-auth'
 import GithubProvider from 'next-auth/providers/github'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -12,6 +15,14 @@ export const authOptions: AuthOptions = {
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60 // 30 days
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      return token
+    },
+    async session({ session, token }) {
+      return session
+    }
   }
 }
 

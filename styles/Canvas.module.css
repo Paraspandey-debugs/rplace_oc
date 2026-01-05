@@ -1,0 +1,66 @@
+.canvasContainer {
+  position: relative;
+  animation: fadeIn 1s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.canvas {
+  border: 2px solid #aa0066;
+  box-shadow: 0 0 20px rgba(170, 0, 102, 0.5);
+  animation: glow 2s infinite alternate;
+}
+
+@keyframes glow {
+  from { box-shadow: 0 0 20px rgba(170, 0, 102, 0.5); }
+  to { box-shadow: 0 0 30px rgba(170, 0, 102, 0.8); }
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.button {
+  background: linear-gradient(45deg, #7c7c7c, #aa0066);
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  padding: 8px 12px;
+  font-size: 10px;
+  cursor: pointer;
+  font-family: 'Press Start 2P';
+  transition: transform 0.2s;
+}
+
+.button:hover {
+  transform: scale(1.05);
+}
+
+.palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.colorButton {
+  width: 30px;
+  height: 30px;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.colorButton:hover {
+  border-color: #aa0066;
+}
