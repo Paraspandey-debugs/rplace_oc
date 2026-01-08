@@ -50,11 +50,15 @@ model DailyGrid {
 
 model ExternalLeaderboard {
   id        String   @id @default(cuid())
-  username  String
+  githubid  String   @unique
+  position  Int
   points    Int
-  rank      Int
   scrapedAt DateTime @default(now())
+
+  @@index([position])
+  @@index([points])
 }
+
 
 model Alliance {
   id           String   @id @default(cuid())
